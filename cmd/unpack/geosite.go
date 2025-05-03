@@ -3,17 +3,19 @@ package unpack
 import (
 	"bufio"
 	"fmt"
-	"github.com/spf13/cobra"
-	"github.com/urlesistiana/v2dat/v2data"
-	"go.uber.org/zap"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/spf13/cobra"
+	"github.com/urlesistiana/v2dat/v2data"
+	"go.uber.org/zap"
 )
 
 type unpackArgs struct {
 	outDir  string
+	print   bool
 	file    string
 	filters []string
 }
@@ -33,58 +35,77 @@ func newGeoSiteCmd() *cobra.Command {
 		DisableFlagsInUseLine: true,
 	}
 	c.Flags().StringVarP(&args.outDir, "out", "o", "", "output dir")
+	c.Flags().BoolVarP(&args.print, "print", "p", false, "write to stdout instead of files")
 	c.Flags().StringArrayVarP(&args.filters, "filter", "f", nil, "unpack given tag and attrs")
 	return c
 }
 
 func unpackGeoSite(args *unpackArgs) error {
+	// shorthand
 	filePath, suffixes, outDir := args.file, args.filters, args.outDir
-	b, err := os.ReadFile(filePath)
+
+	// “-o -”  → stream to stdout instead of writing files
+	stdoutMode := outDir == "-"
+
+	// read & decode the .dat file once
+	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return err
 	}
-	geoSiteList, err := v2data.LoadGeoSiteList(b)
+	geoSiteList, err := v2data.LoadGeoSiteList(data)
 	if err != nil {
 		return err
 	}
 
+	// build tag → domains map
 	entries := make(map[string][]*v2data.Domain)
-	for _, geoSite := range geoSiteList.GetEntry() {
-		tag := strings.ToLower(geoSite.GetCountryCode())
-		entries[tag] = geoSite.GetDomain()
+	for _, gs := range geoSiteList.GetEntry() {
+		tag := strings.ToLower(gs.GetCountryCode())
+		entries[tag] = gs.GetDomain()
 	}
 
-	save := func(suffix string, data []*v2data.Domain) error {
-		file := fmt.Sprintf("%s_%s.txt", fileName(filePath), suffix)
-		if len(outDir) > 0 {
-			file = filepath.Join(outDir, file)
+	// helper that either prints or saves one tag
+	save := func(suffix string, domains []*v2data.Domain) error {
+		if stdoutMode {
+			// header line helps when multiple tags are streamed
+			fmt.Fprintf(os.Stdout, "# %s (%d domains)\n", suffix, len(domains))
+			return convertV2DomainToText(domains, os.Stdout)
 		}
-		logger.Info(
-			"unpacking entry",
+
+		name := fmt.Sprintf("%s_%s.txt", fileName(filePath), suffix)
+		if outDir != "" {
+			name = filepath.Join(outDir, name)
+		}
+		logger.Info("unpacking entry",
 			zap.String("tag", suffix),
-			zap.Int("length", len(data)),
-			zap.String("file", file),
+			zap.Int("length", len(domains)),
+			zap.String("file", name),
 		)
-		return convertV2DomainToTextFile(data, file)
+		return convertV2DomainToTextFile(domains, name)
 	}
 
-	if len(suffixes) > 0 {
+	// specific tags requested with -f
+	if len(suffixes) != 0 {
 		for _, suffix := range suffixes {
 			tag, attrs := splitAttrs(suffix)
-			entry, ok := entries[tag]
+
+			domains, ok := entries[tag]
 			if !ok {
 				return fmt.Errorf("cannot find entry %s", tag)
 			}
-			entry = filterAttrs(entry, attrs)
-			if err := save(suffix, entry); err != nil {
-				return fmt.Errorf("failed to save %s, %w", suffix, err)
+			domains = filterAttrs(domains, attrs)
+
+			if err := save(suffix, domains); err != nil {
+				return fmt.Errorf("failed to save %s: %w", suffix, err)
 			}
 		}
-	} else { // If tag is omitted, unpack all tags.
-		for tag, domains := range entries {
-			if err := save(tag, domains); err != nil {
-				return fmt.Errorf("failed to save %s, %w", tag, err)
-			}
+		return nil
+	}
+
+	// no -f ⇒ dump everything
+	for tag, domains := range entries {
+		if err := save(tag, domains); err != nil {
+			return fmt.Errorf("failed to save %s: %w", tag, err)
 		}
 	}
 	return nil
