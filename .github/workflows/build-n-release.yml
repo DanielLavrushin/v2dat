@@ -1,0 +1,62 @@
+name: Manual Build and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version"
+        required: true
+        default: "0.1"
+      draft:
+        description: "Save the release as a draft first?"
+        required: false
+        default: false
+        type: boolean
+
+      prerelease:
+        description: "Mark this build as a pre-release?"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: tools/xraydatbuilder/src/go.mod
+
+      - name: Build v2data
+        run: |
+          chmod +x ./build.sh
+          ./build.sh
+          tar -czf ./v2data.tar.gz -C ./dist .
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ github.event.inputs.version }}
+          release_name: "Release ${{ github.event.inputs.version }}"
+          draft: ${{ github.event.inputs.draft == 'true' }}
+          prerelease: ${{ github.event.inputs.prerelease == 'true' }}
+
+      - name: Upload xrayui-datbuilder Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: v2data.tar.gz
+          asset_name: v2data.tar.gz
+          asset_content_type: application/gzip
