@@ -87,7 +87,8 @@ func unpackGeoSite(args *unpackArgs) error {
 	// specific tags requested with -f
 	if len(suffixes) != 0 {
 		for _, suffix := range suffixes {
-			tag, attrs := splitAttrs(suffix)
+			tagRaw, attrs := splitAttrs(suffix)
+			tag := strings.ToLower(tagRaw)
 
 			domains, ok := entries[tag]
 			if !ok {
