@@ -38,7 +38,7 @@ jobs:
         run: |
           chmod +x ./build.sh
           ./build.sh
-          tar -czf ./v2dat.tar.gz -C ./dist .
+          tar -czf ./v2dat.tar.gz -C ./dist/armv5 .
 
       - name: Create GitHub Release
         id: create_release

@@ -25,3 +25,5 @@ release/
 testutils/
 
 dist/
+
+*.tar.gz
