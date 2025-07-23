@@ -39,6 +39,10 @@ jobs:
           chmod +x ./build.sh
           ./build.sh
           tar -czf ./v2dat.tar.gz -C ./dist/armv5 .
+          tar -czf ./v2dat-armv5.tar.gz -C ./dist/armv5 .
+          tar -czf ./v2dat-armv7.tar.gz -C ./dist/armv7 .
+          tar -czf ./v2dat-mipsle.tar.gz -C ./dist/mipsle .
+          tar -czf ./v2dat-arm64.tar.gz -C ./dist/arm64 .
 
       - name: Create GitHub Release
         id: create_release
@@ -51,7 +55,7 @@ jobs:
           draft: ${{ github.event.inputs.draft == 'true' }}
           prerelease: ${{ github.event.inputs.prerelease == 'true' }}
 
-      - name: Upload xrayui-datbuilder Asset
+      - name: Upload v2dat
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -60,3 +64,43 @@ jobs:
           asset_path: v2dat.tar.gz
           asset_name: v2dat.tar.gz
           asset_content_type: application/gzip
+
+      - name: Upload v2dat-armv5
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: v2dat-armv5.tar.gz
+          asset_name: v2dat-armv5.tar.gz
+          asset_content_type: application/gzip
+
+      - name: Upload v2dat-armv7
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: v2dat-armv7.tar.gz
+          asset_name: v2dat-armv7.tar.gz
+          asset_content_type: application/gzip
+      
+      - name: Upload v2dat-mipsle
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: v2dat-mipsle.tar.gz
+          asset_name: v2dat-mipsle.tar.gz
+          asset_content_type: application/gzip
+
+      - name: Upload v2dat-arm64
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: v2dat-arm64.tar.gz
+          asset_name: v2dat-arm64.tar.gz
+          asset_content_type: application/gzip  
