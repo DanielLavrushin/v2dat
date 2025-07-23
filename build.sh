@@ -6,7 +6,7 @@ VERSION=$(git -C "$(go env GOPATH)/pkg/mod/$PKG" 2>/dev/null || echo dev)
 
 build() {
     GOOS=linux GOARCH=$1 GOARM=$2 GOMIPS=$3 \
-        go build -trimpath -ldflags "-s -w -X main.version=$VERSION" \
+        go build -tags "protobuf,unsafe" -trimpath -ldflags "-s -w -X main.version=$VERSION" \
         -o dist/$4/v2dat ./
 }
 
