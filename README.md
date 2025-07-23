@@ -1,5 +1,7 @@
 # v2dat
 
+![image](https://img.shields.io/github/downloads/DanielLavrushin/v2dat/total?label=total%20downloads)
+
 A cli tool that can unpack v2ray data packages (also known as `geoip.dat` and `geosite.dat`) to text files.
 
 ## Usage
