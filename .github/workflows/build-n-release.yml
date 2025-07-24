@@ -6,7 +6,7 @@ on:
       version:
         description: Release version
         required: true
-        default: 2.0.0
+        default: 1.0.0
       draft:
         description: Save the release as a draft first?
         required: false
@@ -41,15 +41,25 @@ jobs:
           chmod +x ./build.sh
           ./build.sh
 
+      - name: List built files
+        run: ls -al dist dist/assets
+
       - name: Export asset list
+        id: assets
         run: |
-          echo "ASSET_FILES=$(ls dist/assets/*.tar.gz | tr '\n' ' ')" >> $GITHUB_ENV
+          echo "ASSET_FILES<<EOF" >> $GITHUB_ENV
+          ls dist/assets/*.tar.gz >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+          echo "files<<EOF" >> $GITHUB_OUTPUT
+          ls dist/assets/*.tar.gz >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Upload files to Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: v2dat-${{ env.VERSION }}
-          path: ${{ env.ASSET_FILES }}
+          path: ${{ steps.assets.outputs.files }}
 
       - name: Create or update release
         uses: softprops/action-gh-release@v2
@@ -58,4 +68,4 @@ jobs:
           name: v${{ env.VERSION }}
           draft: ${{ inputs.draft }}
           prerelease: ${{ inputs.prerelease }}
-          files: ${{ env.ASSET_FILES }}
+          files: ${{ steps.assets.outputs.files }}
