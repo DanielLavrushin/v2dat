@@ -25,7 +25,7 @@ type unpackArgs struct {
 func newGeoSiteCmd() *cobra.Command {
 	args := new(unpackArgs)
 	c := &cobra.Command{
-		Use:   "geosite [-o output_dir] [-f tag[@attr]...]... geosite.dat",
+		Use:   "geosite [-o output_dir] [-p] [-f tag[@attr]...]... geosite.dat",
 		Args:  cobra.ExactArgs(1),
 		Short: "Unpack geosite file to text files.",
 		Run: func(cmd *cobra.Command, a []string) {
@@ -43,8 +43,9 @@ func newGeoSiteCmd() *cobra.Command {
 }
 
 func unpackGeoSite(args *unpackArgs) error {
-	filePath, suffixes, outDir := args.file, args.filters, args.outDir
-	stdoutMode := outDir == "-"
+	filePath, suffixes, outDir, stdout := args.file, args.filters, args.outDir, args.print
+	stdoutMode := outDir == "-" || stdout
+
 	save := func(suffix string, domains []*v2data.Domain) error {
 		if stdoutMode {
 			fmt.Fprintf(os.Stdout, "# %s (%d domains)\n", suffix, len(domains))
