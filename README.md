@@ -2,7 +2,7 @@
 
 ![image](https://img.shields.io/github/downloads/DanielLavrushin/v2dat/total?label=total%20downloads)
 
-A fast, no‑frills CLI for unpacking Xray‑core / V2Ray data packs – the legendary geoip.dat and geosite.dat – into plain‑text (ren‑tekst) files you can grep, diff or commit.
+A fast, no‑frills CLI for unpacking Xray‑core / V2Ray data packs – the geoip.dat and geosite.dat – into plain‑text files.
 
 ## Features
 
