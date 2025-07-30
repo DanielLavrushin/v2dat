@@ -2,7 +2,16 @@
 
 ![image](https://img.shields.io/github/downloads/DanielLavrushin/v2dat/total?label=total%20downloads)
 
-A cli tool that can unpack xray-core/v2ray data packages (also known as `geoip.dat` and `geosite.dat`) to text files.
+A fast, no‑frills CLI for unpacking Xray‑core / V2Ray data packs – the legendary geoip.dat and geosite.dat – into plain‑text (ren‑tekst) files you can grep, diff or commit.
+
+## Features
+
+- Unpack `geoip.dat` & `geosite.dat` in one command.
+- Stream mode – reads only the entries you ask for; huge speed‑ups when filtering.
+- `-t`, `--tags` flag prints every tag present in the file and exits.
+- `-p`, `--print` dumps straight to stdout.
+- Consistent output naming: `<dat_filename>_<tag>.txt`.
+- Pre‑built binaries for Linux, macOS, Windows.
 
 ## Usage
 
@@ -17,25 +26,23 @@ v2dat unpack geosite [-o output_dir] [-p] [-f tag[@attr]...]... geosite.dat
 - Unpacked text files will be named as `<geo_filename>_<filter>.txt`.
 - Use `-p` instead of `-o` for stdout.
 
-## Unpacked IP Data
+## Example
 
-Unpacked IP text files contain a list of CIDRs.
+```bash
+# unpack every CIDR list inside geoip.dat into ./out
+v2dat unpack geoip -o out /path/to/geoip.dat
 
-```text
-2.16.33.76/32
-2.19.128.0/20
-2.20.32.0/22
-```
+# print Danish (dansk) CIDRs to stdout
+v2dat unpack geoip -p -f dk /path/to/geoip.dat
 
-## Unpacked Domain Data
+# list available tags inside geosite
+v2dat unpack geosite -t /path/to/geosite.dat
 
-`geosite` contains four types of domain rule expression: `domain`, `keyword`, `regexp`, `full`. Each expression can have several attributes `@attr`. More info about `geosite` can be found in [here](https://github.com/v2fly/domain-list-community).
+# unpack only the "google" domain rules under the "cn" tag
 
-`v2dat` will split type and expression with a `:`. But omits the `domain` prefix and attributes.
+# a) list availble attirbutes
+   v2dat unpack geosite -t /path/to/geosite.dat
 
-```text
-google.com
-keyword:google
-regexp:www\.google\.com$
-full:www.google.com
+# b) unpack google category and stdout
+   v2dat unpack geosite -o out -f google /path/to/geosite.dat
 ```

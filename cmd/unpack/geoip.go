@@ -8,6 +8,7 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -18,11 +19,18 @@ import (
 
 func newGeoIPCmd() *cobra.Command {
 	args := new(unpackArgs)
+	var listTags bool
 	c := &cobra.Command{
-		Use:   "geoip [-o output_dir] [-f tag]... geoip.dat",
+		Use:   "geoip [-o output_dir] [-p] [-t] [-f tag]... geoip.dat",
 		Args:  cobra.ExactArgs(1),
-		Short: "Unpack geoip file to text files.",
+		Short: "Unpack geoip file or list tags.",
 		Run: func(cmd *cobra.Command, a []string) {
+			if listTags {
+				if err := listGeoIPTags(a[0]); err != nil {
+					logger.Fatal("failed to list geoip tags", zap.Error(err))
+				}
+				return
+			}
 			args.file = a[0]
 			if err := unpackGeoIP(args); err != nil {
 				logger.Fatal("failed to unpack geoip", zap.Error(err))
@@ -33,6 +41,7 @@ func newGeoIPCmd() *cobra.Command {
 	c.Flags().StringVarP(&args.outDir, "out", "o", "", "output dir")
 	c.Flags().BoolVarP(&args.print, "print", "p", false, "write to stdout instead of files")
 	c.Flags().StringArrayVarP(&args.filters, "filter", "f", nil, "unpack given tag")
+	c.Flags().BoolVarP(&listTags, "tags", "t", false, "list all tags in the file")
 	return c
 }
 
@@ -129,6 +138,52 @@ func streamGeoIP(file string, filters []string, save func(string, *v2data.GeoIP)
 		if len(got) == len(want) {
 			return nil
 		}
+	}
+	return nil
+}
+
+func listGeoIPTags(filePath string) error {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	set := map[string]struct{}{}
+	r := bufio.NewReaderSize(f, 32*1024)
+	for {
+		b, err := r.ReadByte()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		if b != 0x0A {
+			return fmt.Errorf("unexpected wire tag %02X", b)
+		}
+		l, err := binary.ReadUvarint(r)
+		if err != nil {
+			return err
+		}
+		msg := make([]byte, l)
+		if _, err := io.ReadFull(r, msg); err != nil {
+			return err
+		}
+		tag, err := readCountryCode(msg)
+		if err != nil {
+			return err
+		}
+		set[tag] = struct{}{}
+	}
+
+	tags := make([]string, 0, len(set))
+	for t := range set {
+		tags = append(tags, t)
+	}
+	sort.Strings(tags)
+	for _, t := range tags {
+		fmt.Println(t)
 	}
 	return nil
 }

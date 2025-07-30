@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -24,11 +25,18 @@ type unpackArgs struct {
 
 func newGeoSiteCmd() *cobra.Command {
 	args := new(unpackArgs)
+	var listTags bool
 	c := &cobra.Command{
-		Use:   "geosite [-o output_dir] [-p] [-f tag[@attr]...]... geosite.dat",
+		Use:   "geosite [-o output_dir] [-p] [-t] [-f tag[@attr]...]... geosite.dat",
 		Args:  cobra.ExactArgs(1),
-		Short: "Unpack geosite file to text files.",
+		Short: "Unpack geosite file or list tags.",
 		Run: func(cmd *cobra.Command, a []string) {
+			if listTags {
+				if err := listGeoSiteTags(a[0]); err != nil {
+					logger.Fatal("failed to list geosite tags", zap.Error(err))
+				}
+				return
+			}
 			args.file = a[0]
 			if err := unpackGeoSite(args); err != nil {
 				logger.Fatal("failed to unpack geosite", zap.Error(err))
@@ -39,9 +47,9 @@ func newGeoSiteCmd() *cobra.Command {
 	c.Flags().StringVarP(&args.outDir, "out", "o", "", "output dir")
 	c.Flags().BoolVarP(&args.print, "print", "p", false, "write to stdout instead of files")
 	c.Flags().StringArrayVarP(&args.filters, "filter", "f", nil, "unpack given tag and attrs")
+	c.Flags().BoolVarP(&listTags, "tags", "t", false, "list all tags in the file")
 	return c
 }
-
 func unpackGeoSite(args *unpackArgs) error {
 	filePath, suffixes, outDir, stdout := args.file, args.filters, args.outDir, args.print
 	stdoutMode := outDir == "-" || stdout
@@ -152,6 +160,52 @@ func streamGeoSite(file string, filters []string, save func(string, []*v2data.Do
 		if len(got) == len(want) {
 			return nil
 		}
+	}
+	return nil
+}
+
+func listGeoSiteTags(filePath string) error {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	set := map[string]struct{}{}
+	r := bufio.NewReaderSize(f, 32*1024)
+	for {
+		b, err := r.ReadByte()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		if b != 0x0A {
+			return fmt.Errorf("unexpected wire tag %02X", b)
+		}
+		l, err := binary.ReadUvarint(r)
+		if err != nil {
+			return err
+		}
+		msg := make([]byte, l)
+		if _, err := io.ReadFull(r, msg); err != nil {
+			return err
+		}
+		tag, err := readCountryCode(msg)
+		if err != nil {
+			return err
+		}
+		set[tag] = struct{}{}
+	}
+
+	tags := make([]string, 0, len(set))
+	for t := range set {
+		tags = append(tags, t)
+	}
+	sort.Strings(tags)
+	for _, t := range tags {
+		fmt.Println(t)
 	}
 	return nil
 }
