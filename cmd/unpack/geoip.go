@@ -2,15 +2,18 @@ package unpack
 
 import (
 	"bufio"
+	"encoding/binary"
 	"fmt"
-	"github.com/spf13/cobra"
-	"github.com/urlesistiana/v2dat/v2data"
-	"go.uber.org/zap"
 	"io"
 	"net/netip"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/spf13/cobra"
+	"github.com/urlesistiana/v2dat/v2data"
+	"go.uber.org/zap"
+	"google.golang.org/protobuf/proto"
 )
 
 func newGeoIPCmd() *cobra.Command {
@@ -28,12 +31,36 @@ func newGeoIPCmd() *cobra.Command {
 		DisableFlagsInUseLine: true,
 	}
 	c.Flags().StringVarP(&args.outDir, "out", "o", "", "output dir")
+	c.Flags().BoolVarP(&args.print, "print", "p", false, "write to stdout instead of files")
 	c.Flags().StringArrayVarP(&args.filters, "filter", "f", nil, "unpack given tag")
 	return c
 }
 
 func unpackGeoIP(args *unpackArgs) error {
-	filePath, wantTags, ourDir := args.file, args.filters, args.outDir
+	filePath, wantTags, outDir, stdout := args.file, args.filters, args.outDir, args.print
+	stdoutMode := outDir == "-" || stdout
+
+	save := func(tag string, geo *v2data.GeoIP) error {
+		if stdoutMode {
+			fmt.Fprintf(os.Stdout, "# %s (%d cidr)\n", tag, len(geo.GetCidr()))
+			return convertV2CidrToText(geo.GetCidr(), os.Stdout)
+		}
+		file := fmt.Sprintf("%s_%s.txt", fileName(filePath), tag)
+		if outDir != "" {
+			file = filepath.Join(outDir, file)
+		}
+		logger.Info("unpacking entry",
+			zap.String("tag", tag),
+			zap.Int("length", len(geo.GetCidr())),
+			zap.String("file", file),
+		)
+		return convertV2CidrToTextFile(geo.GetCidr(), file)
+	}
+
+	if len(wantTags) != 0 {
+		return streamGeoIP(filePath, wantTags, save)
+	}
+
 	b, err := os.ReadFile(filePath)
 	if err != nil {
 		return err
@@ -42,44 +69,67 @@ func unpackGeoIP(args *unpackArgs) error {
 	if err != nil {
 		return err
 	}
-
-	entries := make(map[string]*v2data.GeoIP)
-	var wantEntries map[string]*v2data.GeoIP
-	for _, geoSite := range geoIPList.GetEntry() {
-		tag := strings.ToLower(geoSite.GetCountryCode())
-		entries[tag] = geoSite
-	}
-
-	if len(wantTags) > 0 {
-		wantEntries = make(map[string]*v2data.GeoIP)
-		for _, tag := range wantTags {
-			entry, ok := entries[tag]
-			if !ok {
-				return fmt.Errorf("cannot find entry %s", tag)
-			}
-			wantEntries[tag] = entry
-		}
-	} else {
-		wantEntries = entries
-	}
-
-	for tag, ipList := range wantEntries {
-		file := fmt.Sprintf("%s_%s.txt", fileName(filePath), tag)
-		if len(ourDir) > 0 {
-			file = filepath.Join(ourDir, file)
-		}
-		logger.Info(
-			"unpacking entry",
-			zap.String("tag", tag),
-			zap.Int("length", len(ipList.GetCidr())),
-			zap.String("file", file),
-		)
-		err := convertV2CidrToTextFile(ipList.GetCidr(), file)
-		if err != nil {
+	for _, geo := range geoIPList.GetEntry() {
+		tag := strings.ToLower(geo.GetCountryCode())
+		if err := save(tag, geo); err != nil {
 			return err
 		}
 	}
+	return nil
+}
 
+func streamGeoIP(file string, filters []string, save func(string, *v2data.GeoIP) error) error {
+	f, err := os.Open(file)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	want := map[string]struct{}{}
+	for _, tag := range filters {
+		want[strings.ToLower(tag)] = struct{}{}
+	}
+	got := map[string]struct{}{}
+
+	r := bufio.NewReaderSize(f, 32*1024)
+	for {
+		tagByte, err := r.ReadByte()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		if tagByte != 0x0A {
+			return fmt.Errorf("unexpected wire tag %02X", tagByte)
+		}
+		length, err := binary.ReadUvarint(r)
+		if err != nil {
+			return err
+		}
+		msg := make([]byte, length)
+		if _, err := io.ReadFull(r, msg); err != nil {
+			return err
+		}
+		tag, err := readCountryCode(msg)
+		if err != nil {
+			return err
+		}
+		if _, ok := want[tag]; !ok {
+			continue
+		}
+		var geo v2data.GeoIP
+		if err := proto.Unmarshal(msg, &geo); err != nil {
+			return err
+		}
+		if err := save(tag, &geo); err != nil {
+			return err
+		}
+		got[tag] = struct{}{}
+		if len(got) == len(want) {
+			return nil
+		}
+	}
 	return nil
 }
 

@@ -7,7 +7,7 @@ A cli tool that can unpack xray-core/v2ray data packages (also known as `geoip.d
 ## Usage
 
 ```shell
-v2dat unpack geoip [-o output_dir] [-f tag]... geoip_file
+v2dat unpack geoip [-o output_dir] [-p] [-f tag]... geoip_file
 v2dat unpack geosite [-o output_dir] [-p] [-f tag[@attr]...]... geosite.dat
 ```
 
@@ -15,7 +15,7 @@ v2dat unpack geosite [-o output_dir] [-p] [-f tag[@attr]...]... geosite.dat
 - If no filter `-f` was given. All tags will be unpacked.
 - If multiple `@attr` were given. Entries that don't contain any of given attrs will be ignored.
 - Unpacked text files will be named as `<geo_filename>_<filter>.txt`.
-- Use `-p` instead of `-o` for std out.
+- Use `-p` instead of `-o` for stdout.
 
 ## Unpacked IP Data
 
